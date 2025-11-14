@@ -1,0 +1,22 @@
+# Compare Cases Repositoty 
+
+Get to SDDP cases and track the changes from case A to case B. 
+
+The output is a folder with csv files, one for each object type.
+
+On this csv the objcts are tracked as removed, added or moodify (property)
+
+# V0 
+- Dataframes with code,name, property,value_a,value_b
+- For each element case A, check the conditions: 
+    - If it exist on study B 
+    - If there is only one element with that code and name, check if properties changed
+    - If there are more than one, get the one with teh same RefSystem and check if properties changed
+- Append changes to a dataframe
+
+## To do list 
+
+- Check elements that doesn't have code
+- Add collumn to dataframe (OP: Add. Removed or Modified)
+- Check Ref properties 
+- Create folders with csv
