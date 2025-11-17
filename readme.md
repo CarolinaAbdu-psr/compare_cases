@@ -6,7 +6,7 @@ The output is a folder with csv files, one for each object type.
 
 On this csv the objcts are tracked as removed, added or moodify (property)
 
-# V0 
+# V0 (14/11)
 - Dataframes with code,name, property,value_a,value_b
 - For each element case A, check the conditions: 
     - If it exist on study B 
@@ -14,9 +14,12 @@ On this csv the objcts are tracked as removed, added or moodify (property)
     - If there are more than one, get the one with teh same RefSystem and check if properties changed
 - Append changes to a dataframe
 
+# V1 (17/11)
+- Add column OP: "R" = removed, "A" = added, "M" = modified
+- Add condition: For all objects in study b, if is not on study_b_visited_objects list, add a line of added object. 
+
 ## To do list 
 
 - Check elements that doesn't have code
-- Add collumn to dataframe (OP: Add. Removed or Modified)
 - Check Ref properties 
 - Create folders with csv
