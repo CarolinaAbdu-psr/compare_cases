@@ -26,11 +26,54 @@ def add_to_dataframe(type, code, name, options, property, value_a, value_b, data
 
     return dataframes
 
+def compare_references(ref_list_source, ref_list_target):
+    for item_source in ref_list_source:
+        match = False 
+        for item_target in ref_list_target:
+            match_name = item_source.name == item_target.name 
+            match_code = item_source.code == item_target.code
+            try:  
+                match_system = item_source.get("RefSystem")[0].code == item_target.get("RefSystem")[0].code
+            except:
+                match_system = True
+            match = match_name and match_code and match_system
+            if match: 
+                break 
+        if not match: 
+            return False
+    return match
+
 
 def compare_values(obj_source, obj_target, dataframes): 
     for key, value in obj_source.as_dict().items():
-        if key.startswith("Ref"): #Ignore by now
-            continue
+
+        type = obj_source.type
+        code = obj_source.code
+        name = obj_source.name
+
+        if key.startswith("Ref") and key!= "ReferenceGeneration" : #Compare references 
+    
+            if obj_source.get(key) is None and obj_target.get(key) is None:
+                continue
+        
+            elif obj_source.get(key) is None or obj_target.get(key) is None:
+                print("Different references found")
+                dataframes = add_to_dataframe(type, code, name, "M", key, obj_source.get(key), obj_target.get(key), dataframes)
+                continue
+
+            elif not isinstance(obj_source.get(key), list):
+                ref_list_source = [obj_source.get(key)]
+                ref_list_target = [obj_target.get(key)]
+            else: 
+                ref_list_source = obj_source.get(key)
+                ref_list_target = obj_target.get(key)
+
+            match = compare_references(ref_list_source, ref_list_target)
+            if not match: 
+                print("Different references found")
+                dataframes = add_to_dataframe(type, code, name, "M", key, ref_list_source, ref_list_target, dataframes)
+            continue 
+
         #Compare if the values are equal 
         value_a = value
         try: 
@@ -39,9 +82,7 @@ def compare_values(obj_source, obj_target, dataframes):
             value_b = None
 
         if value_a != value_b: 
-            type = obj_source.type
-            code = obj_source.code
-            name = obj_source.name
+            print(key,": Values different",value_a,value_b)
             dataframes = add_to_dataframe(type, code, name, "M", key, value_a, value_b, dataframes)
     
     return dataframes
@@ -64,10 +105,8 @@ def compare_studies(study_a, study_b, dataframes):
         name = obj.name
         
         #Check if existes in study B 
-        if code: 
-            obj_b = study_b.find_by_code(type,code)
-        else:
-            obj_b = study_b.find_by_name(type,name)
+        obj_b = study_b.find_by_code(type,code)
+      
 
         #No correspontet object in study B
         if len(obj_b) ==0:  
@@ -91,7 +130,6 @@ def compare_studies(study_a, study_b, dataframes):
     #Get remaining objects of study b: 
     all_objects=study_b.get_all_objects()
     for obj in all_objects:
-        print(obj)
         if obj in study_b_visited_objects:
             continue
         
@@ -113,11 +151,10 @@ STUDY_B_PATH = r'Case15_mod'
 study_a = psr.factory.load_study(STUDY_A_PATH)
 study_b = psr.factory.load_study(STUDY_B_PATH)
 
-fuel = study_a.find_by_code("Fuel",1)[0]
-study_a.remove(fuel)
+thermal = study_a.find_by_code("ThermalPlant",1)[0]
+fuel_2 = study_a.find_by_code("Fuel",2)[0]
 
-fuel = study_b.find_by_code("Fuel",2)[0]
-study_b.remove(fuel)
+thermal.set("RefFuels",[fuel_2])
 
 dataframes = {}
 
