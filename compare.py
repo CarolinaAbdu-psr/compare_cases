@@ -1,5 +1,6 @@
 import psr.factory 
 import pandas as pd
+import os 
 
 def create_dataframe(code,name,options, property,value_a,value_b):
     # code, name, porperty, value A, value B 
@@ -143,6 +144,25 @@ def compare_studies(study_a, study_b, dataframes):
     return dataframes
 
 
+def save__dataframes(datafrmes,output_dir):
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    for filename, df in compare_studies(study_a, study_b,dataframes).items():
+
+        df = df.fillna("None")
+        
+        csv_name = f"{filename}.csv"
+        path = os.path.join(output_dir, csv_name)
+
+        # Save dataframe to CSV
+        df.to_csv(path, index=True)
+        
+        print(f"Saved {path}")
+
+
+
+
 #Define cases path 
 STUDY_A_PATH = r'Case15'
 STUDY_B_PATH = r'Case15_mod'
@@ -157,9 +177,9 @@ fuel_2 = study_a.find_by_code("Fuel",2)[0]
 thermal.set("RefFuels",[fuel_2])
 
 dataframes = {}
+output_dir = "comparison_results"
 
-for type, df in compare_studies(study_a, study_b,dataframes).items():
-    print(type)
-    print(df)
+save__dataframes(dataframes,output_dir)
+
 
 

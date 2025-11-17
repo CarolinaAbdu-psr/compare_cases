@@ -20,9 +20,8 @@ On this csv the objcts are tracked as removed, added or moodify (property)
 
 # v2 (17/11)
 - Check Ref properties added (compare code, name and Ref System of Ref Objects list)
-
+- Create folders with csv
 
 ## To do list 
-
 - Check elements that doesn't have code
-- Create folders with csv
+
