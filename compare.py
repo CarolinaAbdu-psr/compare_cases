@@ -2,12 +2,14 @@ import psr.factory
 import pandas as pd
 import os 
 
-def create_dataframe(code,name,options, property,value_a,value_b):
-    # code, name, porperty, value A, value B 
+def create_dataframe(code,name,options, property,date, value_a,value_b):
+    """Creates a dataframe with the collumns from the instances"""
+    
     data = {'code': [code],
         'name': [name],
         'op': [options],
         'property': [property],
+        'date': [date],
         'value_a':[value_a],
         'value_b':[value_b]}
     df = pd.DataFrame(data)
@@ -16,13 +18,13 @@ def create_dataframe(code,name,options, property,value_a,value_b):
 
     return df_multi_index
 
-def add_to_dataframe(type, code, name, options, property, value_a, value_b, dataframes):
+def add_to_dataframe(type, code, name, options, property,date, value_a, value_b, dataframes):
 
     if type not in dataframes:
-        dataframes[type] = create_dataframe(code,name, options, property,value_a,value_b)
+        dataframes[type] = create_dataframe(code,name, options, property,date, value_a,value_b)
     else: 
         df = dataframes[type]
-        new_line = create_dataframe(code,name,options,property,value_a,value_b)
+        new_line = create_dataframe(code,name,options,property,date, value_a,value_b)
         dataframes[type] = pd.concat([df,new_line], ignore_index = False)
 
     return dataframes
@@ -44,51 +46,110 @@ def compare_references(ref_list_source, ref_list_target):
             return False
     return match
 
+def normalize_references(obj, key):
+    ref_value = obj.get(key)
+    if ref_value is None:
+        return []
+    if not isinstance(ref_value, list):
+        return [ref_value]
+    return ref_value
+
+def compare_static_values(obj_source, obj_target, key, value_a, dataframes):
+
+    try:
+        obj_type = obj_source.type 
+        code = obj_source.code 
+        name = obj_source.name 
+    except:
+        obj_type = "Study Object"
+        code = ""
+        name = ""
+    
+    value_b = None
+    try: 
+        value_b = obj_target.get(key)
+    except:
+        pass # value_b permanece None
+        
+    if value_a != value_b: 
+        print(f"{key}: Values different (Static) {value_a}, {value_b}")
+        # Registra a diferença de valor estático
+        dataframes = add_to_dataframe(
+            obj_type, code, name, "M", key, "01/01/1900 ", 
+            value_a, value_b, dataframes
+        )
+        
+    return dataframes
+
+def compare_dynamic_values(obj_source, obj_target, key, dataframes):
+    try:
+        obj_type = obj_source.type 
+        code = obj_source.code 
+        name = obj_source.name 
+    except:
+        obj_type = "Study Object"
+        code = ""
+        name = ""
+    
+    try:
+        df_a = obj_source.get_df(key)
+        df_b = obj_target.get_df(key)
+        df_compare = df_a.compare(df_b)
+
+    except Exception as e:
+        print(f"Error comparing dynamic value {key}: {e}")
+        return dataframes
+
+    for index, row in df_compare.iterrows():
+            date = str(index)
+            value_a = row["self"]
+            value_b = row["other"]
+            
+            dataframes = add_to_dataframe(obj_type, code, name, "M", key, date, value_a, value_b, dataframes)
+            
+    return dataframes
+
 
 def compare_values(obj_source, obj_target, dataframes): 
     for key, value in obj_source.as_dict().items():
 
-        type = obj_source.type
-        code = obj_source.code
-        name = obj_source.name
-
-        if key.startswith("Ref") and key!= "ReferenceGeneration" : #Compare references 
-    
-            if obj_source.get(key) is None and obj_target.get(key) is None:
-                continue
+        try:
+            type = obj_source.type 
+            code = obj_source.code 
+            name = obj_source.name 
+        except:
+            type = "Study Object"
+            code = ""
+            name = ""
         
-            elif obj_source.get(key) is None or obj_target.get(key) is None:
-                print("Different references found")
-                dataframes = add_to_dataframe(type, code, name, "M", key, obj_source.get(key), obj_target.get(key), dataframes)
-                continue
+        if key.startswith("Ref") and key!= "ReferenceGeneration" : 
 
-            elif not isinstance(obj_source.get(key), list):
-                ref_list_source = [obj_source.get(key)]
-                ref_list_target = [obj_target.get(key)]
-            else: 
-                ref_list_source = obj_source.get(key)
-                ref_list_target = obj_target.get(key)
+            ref_list_source = normalize_references(obj_source, key)
+            ref_list_target = normalize_references(obj_target, key)
+    
+            if not ref_list_source and not ref_list_target:
+                continue
 
             match = compare_references(ref_list_source, ref_list_target)
             if not match: 
                 print("Different references found")
-                dataframes = add_to_dataframe(type, code, name, "M", key, ref_list_source, ref_list_target, dataframes)
+                dataframes = add_to_dataframe(type, code, name, "M", key, "",ref_list_source, ref_list_target, dataframes)
             continue 
 
         #Compare if the values are equal 
-        value_a = value
-        try: 
-            value_b = obj_target.get(key)
-        except :
-            value_b = None
+        description = obj_target.description(key)
+        if description is not None: 
 
-        if value_a != value_b: 
-            print(key,": Values different",value_a,value_b)
-            dataframes = add_to_dataframe(type, code, name, "M", key, value_a, value_b, dataframes)
-    
+            if not description.is_dynamic(): 
+                dataframes = compare_static_values(obj_source, obj_target, key, value, dataframes)
+
+            else: 
+                dataframes = compare_dynamic_values(obj_source, obj_target, key, dataframes)
+
     return dataframes
 
 def find_correspondent(obj_source, obj_target):
+    "Get the object with the same system"
     ref_sys_a = obj_source.get("RefSystem")
     for item in obj_target:
         ref_sys_b = item.get("RefSystem")
@@ -101,17 +162,21 @@ def compare_studies(study_a, study_b, dataframes):
     study_b_visited_objects  =[]
     for obj in all_objects:
         
-        type = obj.type 
-        code = obj.code
-        name = obj.name
+        try:
+            type = obj.type 
+            code = obj.code 
+            name = obj.name 
+        except:
+            type = "Study Object"
+            code = ""
+            name = ""
         
-        #Check if existes in study B 
+        #Get correspondet in study B 
         obj_b = study_b.find_by_code(type,code)
       
-
         #No correspontet object in study B
         if len(obj_b) ==0:  
-            dataframes= add_to_dataframe(type, code, name, "R", "None","None", "None", dataframes)
+            dataframes= add_to_dataframe(type, code, name, "R", "None","None","None", "None", dataframes)
         
         #Exacly one correspontent in study b 
         elif len(obj_b)==1:
@@ -125,7 +190,7 @@ def compare_studies(study_a, study_b, dataframes):
                 dataframes = compare_values(obj,obj_b,dataframes)
                 study_b_visited_objects.append(obj_b)
             else:
-                dataframes= add_to_dataframe(type, code, name, "R", "None", "None", "None", dataframes)
+                dataframes= add_to_dataframe(type, code, name, "R", "None","None","None", "None", dataframes)
 
 
     #Get remaining objects of study b: 
@@ -138,20 +203,22 @@ def compare_studies(study_a, study_b, dataframes):
         code = obj.code
         name = obj.name
 
-        dataframes= add_to_dataframe(type, code, name, "A", "None","None", "None", dataframes)
+        dataframes= add_to_dataframe(type, code, name, "A", "None","None","None", "None", dataframes)
 
+    #Compare study objects 
+    dataframes = compare_values(study_a,study_b, dataframes)
 
     return dataframes
 
 
-def save__dataframes(datafrmes,output_dir):
+def save__dataframes(dataframes,output_dir):
 
     os.makedirs(output_dir, exist_ok=True)
 
     for filename, df in compare_studies(study_a, study_b,dataframes).items():
 
         df = df.fillna("None")
-        
+
         csv_name = f"{filename}.csv"
         path = os.path.join(output_dir, csv_name)
 
@@ -161,8 +228,6 @@ def save__dataframes(datafrmes,output_dir):
         print(f"Saved {path}")
 
 
-
-
 #Define cases path 
 STUDY_A_PATH = r'Case15'
 STUDY_B_PATH = r'Case15_mod'
@@ -170,6 +235,13 @@ STUDY_B_PATH = r'Case15_mod'
 #Load studies
 study_a = psr.factory.load_study(STUDY_A_PATH)
 study_b = psr.factory.load_study(STUDY_B_PATH)
+
+demand = study_a.find("Demand")[0]
+segments = demand.get("RefSegments")
+demand_segment = segments[0]
+print(demand_segment.as_dict())
+doubled_df = demand_segment.get_df("EnergyPerBlock") * 2
+demand_segment.set_df(doubled_df)
 
 thermal = study_a.find_by_code("ThermalPlant",1)[0]
 fuel_2 = study_a.find_by_code("Fuel",2)[0]

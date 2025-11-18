@@ -22,6 +22,10 @@ On this csv the objcts are tracked as removed, added or moodify (property)
 - Check Ref properties added (compare code, name and Ref System of Ref Objects list)
 - Create folders with csv
 
+# v3 (18/11)
+- Compare dynamic properties (dataframes) and add to the modifications files the dates which values are different
+- Add study object comparison 
+
 ## To do list 
 - Check elements that doesn't have code
-
+- Compare demand segments 
