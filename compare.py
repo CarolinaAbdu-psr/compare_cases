@@ -54,7 +54,7 @@ def normalize_references(obj, key):
         return [ref_value]
     return ref_value
 
-def compare_static_values(obj_source, obj_target, key, value_a, dataframes):
+def compare_static_values(obj_source, obj_target, key, dataframes):
 
     try:
         obj_type = obj_source.type 
@@ -65,19 +65,18 @@ def compare_static_values(obj_source, obj_target, key, value_a, dataframes):
         code = ""
         name = ""
     
+    value_a = None
     value_b = None
     try: 
+        value_a = obj_target.get(key)
         value_b = obj_target.get(key)
     except:
-        pass # value_b permanece None
+        pass 
         
     if value_a != value_b: 
         print(f"{key}: Values different (Static) {value_a}, {value_b}")
         # Registra a diferença de valor estático
-        dataframes = add_to_dataframe(
-            obj_type, code, name, "M", key, "01/01/1900 ", 
-            value_a, value_b, dataframes
-        )
+        dataframes = add_to_dataframe(obj_type, code, name, "M", key, "01/01/1900 ", value_a, value_b, dataframes)
         
     return dataframes
 
@@ -141,7 +140,7 @@ def compare_values(obj_source, obj_target, dataframes):
         if description is not None: 
 
             if not description.is_dynamic(): 
-                dataframes = compare_static_values(obj_source, obj_target, key, value, dataframes)
+                dataframes = compare_static_values(obj_source, obj_target, key, dataframes)
 
             else: 
                 dataframes = compare_dynamic_values(obj_source, obj_target, key, dataframes)
@@ -236,12 +235,6 @@ STUDY_B_PATH = r'Case15_mod'
 study_a = psr.factory.load_study(STUDY_A_PATH)
 study_b = psr.factory.load_study(STUDY_B_PATH)
 
-demand = study_a.find("Demand")[0]
-segments = demand.get("RefSegments")
-demand_segment = segments[0]
-print(demand_segment.as_dict())
-doubled_df = demand_segment.get_df("EnergyPerBlock") * 2
-demand_segment.set_df(doubled_df)
 
 thermal = study_a.find_by_code("ThermalPlant",1)[0]
 fuel_2 = study_a.find_by_code("Fuel",2)[0]
