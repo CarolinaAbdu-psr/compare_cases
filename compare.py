@@ -19,6 +19,7 @@ def create_dataframe(code,name,options, property,date, value_a,value_b):
     return df_multi_index
 
 def add_to_dataframe(type, code, name, options, property,date, value_a, value_b, dataframes):
+    """Add a new row to a dataframe of selected object"""
 
     if type not in dataframes:
         dataframes[type] = create_dataframe(code,name, options, property,date, value_a,value_b)
@@ -30,6 +31,7 @@ def add_to_dataframe(type, code, name, options, property,date, value_a, value_b,
     return dataframes
 
 def compare_references(ref_list_source, ref_list_target):
+    "Return if two references obejcts are the same"
     for item_source in ref_list_source:
         match = False 
         for item_target in ref_list_target:
@@ -42,19 +44,23 @@ def compare_references(ref_list_source, ref_list_target):
             match = match_name and match_code and match_system
             if match: 
                 break 
-        if not match: 
+        if not match: # If the item_source are not in ref target list, the objects re different 
             return False
     return match
 
 def normalize_references(obj, key):
+    """Normalize references to always be a list"""
     ref_value = obj.get(key)
+    # Empty reference
     if ref_value is None:
         return []
+    # Refernce is not a list
     if not isinstance(ref_value, list):
         return [ref_value]
     return ref_value
 
 def compare_static_values(obj_source, obj_target, key, dataframes):
+    """Compare static properties of two objects"""
 
     try:
         obj_type = obj_source.type 
@@ -75,12 +81,13 @@ def compare_static_values(obj_source, obj_target, key, dataframes):
         
     if value_a != value_b: 
         print(f"{key}: Values different (Static) {value_a}, {value_b}")
-        # Registra a diferença de valor estático
+        # Register modification of static values
         dataframes = add_to_dataframe(obj_type, code, name, "M", key, "01/01/1900 ", value_a, value_b, dataframes)
         
     return dataframes
 
 def compare_dynamic_values(obj_source, obj_target, key, dataframes):
+    """Compare dynamic properties (dataframes) such as Thermal Plants Installed Capacity modifications"""
     try:
         obj_type = obj_source.type 
         code = obj_source.code 
@@ -91,27 +98,42 @@ def compare_dynamic_values(obj_source, obj_target, key, dataframes):
         name = ""
     
     try:
+        #Compare two dataframes
         df_a = obj_source.get_df(key)
         df_b = obj_target.get_df(key)
-        df_compare = df_a.compare(df_b)
+        df_compare = df_a.compare(df_b) #Dataframe only with the diferences between two dataframes 
 
     except Exception as e:
         print(f"Error comparing dynamic value {key}: {e}")
         return dataframes
 
     for index, row in df_compare.iterrows():
+            # Add each difference to a row at the modification dataframe
             date = str(index)
-            value_a = row["self"]
-            value_b = row["other"]
+            value_a = row[(key,"self")]
+            value_b = row[key,"other"]
             
             dataframes = add_to_dataframe(obj_type, code, name, "M", key, date, value_a, value_b, dataframes)
             
     return dataframes
 
+def find_correspondent(obj_source, obj_target):
+    "Get the object with the same system"
+    ref_sys_a = obj_source.get("RefSystem")
+    for item in obj_target:
+        ref_sys_b = item.get("RefSystem")
+        if ref_sys_a.code == ref_sys_b.code:
+            return item 
+    return None
 
-def compare_values(obj_source, obj_target, dataframes): 
-    for key, value in obj_source.as_dict().items():
 
+def compare_objects(obj_source, obj_target, dataframes): 
+    """Compare two objects property by property"""
+
+    # Get all properties of obj_source
+    for key in obj_source.descriptions().keys():
+
+        # Define object type, code, and name, with exeception for study object
         try:
             type = obj_source.type 
             code = obj_source.code 
@@ -121,21 +143,26 @@ def compare_values(obj_source, obj_target, dataframes):
             code = ""
             name = ""
         
-        if key.startswith("Ref") and key!= "ReferenceGeneration" : 
+        if obj_source.description(key).is_reference() and type!= "Study Object": 
 
+            # Normalize objects to always be a list 
             ref_list_source = normalize_references(obj_source, key)
             ref_list_target = normalize_references(obj_target, key)
-    
+
+            # If reference is empty 
             if not ref_list_source and not ref_list_target:
                 continue
-
+                
+            # Call compare_references function to check if the objects are the same
             match = compare_references(ref_list_source, ref_list_target)
+
+            # If refences objects are not the same, add modification on dataframe
             if not match: 
                 print("Different references found")
                 dataframes = add_to_dataframe(type, code, name, "M", key, "",ref_list_source, ref_list_target, dataframes)
             continue 
 
-        #Compare if the values are equal 
+        #Compare if the other properties are equal (static and dynamic)
         description = obj_target.description(key)
         if description is not None: 
 
@@ -147,16 +174,10 @@ def compare_values(obj_source, obj_target, dataframes):
 
     return dataframes
 
-def find_correspondent(obj_source, obj_target):
-    "Get the object with the same system"
-    ref_sys_a = obj_source.get("RefSystem")
-    for item in obj_target:
-        ref_sys_b = item.get("RefSystem")
-        if ref_sys_a.code == ref_sys_b.code:
-            return item 
 
 def compare_studies(study_a, study_b, dataframes):
 
+    # Compare all objects from study_a with objcts from study_b
     all_objects=study_a.get_all_objects()
     study_b_visited_objects  =[]
     for obj in all_objects:
@@ -179,14 +200,14 @@ def compare_studies(study_a, study_b, dataframes):
         
         #Exacly one correspontent in study b 
         elif len(obj_b)==1:
-            dataframes = compare_values(obj,obj_b[0],dataframes)
+            dataframes = compare_objects(obj,obj_b[0],dataframes)
             study_b_visited_objects.append(obj_b[0])
 
         #More than one correspont
         elif len(obj_b)>1:
             obj_b = find_correspondent(obj,obj_b)
             if obj_b:
-                dataframes = compare_values(obj,obj_b,dataframes)
+                dataframes = compare_objects(obj,obj_b,dataframes)
                 study_b_visited_objects.append(obj_b)
             else:
                 dataframes= add_to_dataframe(type, code, name, "R", "None","None","None", "None", dataframes)
@@ -204,8 +225,8 @@ def compare_studies(study_a, study_b, dataframes):
 
         dataframes= add_to_dataframe(type, code, name, "A", "None","None","None", "None", dataframes)
 
-    #Compare study objects 
-    dataframes = compare_values(study_a,study_b, dataframes)
+    #Compare study object 
+    dataframes = compare_objects(study_a,study_b, dataframes)
 
     return dataframes
 
