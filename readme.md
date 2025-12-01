@@ -26,6 +26,9 @@ On this csv the objcts are tracked as removed, added or moodify (property)
 - Compare dynamic properties (dataframes) and add to the modifications files the dates which values are different
 - Add study object comparison 
 
+# v4 (01/12)
+- Replace as_dict by descriptions
+- Add treatemnet for dataframes of properties that varies per block/scenario 
+
 ## To do list 
 - Check elements that doesn't have code
-- Compare demand segments 

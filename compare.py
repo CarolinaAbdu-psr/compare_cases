@@ -1,6 +1,7 @@
 import psr.factory 
 import pandas as pd
 import os 
+import shutil
 
 def create_dataframe(code,name,options, property,date, value_a,value_b):
     """Creates a dataframe with the collumns from the instances"""
@@ -102,6 +103,7 @@ def compare_dynamic_values(obj_source, obj_target, key, dataframes):
         df_a = obj_source.get_df(key)
         df_b = obj_target.get_df(key)
         df_compare = df_a.compare(df_b) #Dataframe only with the diferences between two dataframes 
+        print(df_compare)
 
     except Exception as e:
         print(f"Error comparing dynamic value {key}: {e}")
@@ -109,12 +111,12 @@ def compare_dynamic_values(obj_source, obj_target, key, dataframes):
 
     for index, row in df_compare.iterrows():
             # Add each difference to a row at the modification dataframe
-            date = str(index)
-            value_a = row[(key,"self")]
-            value_b = row[key,"other"]
-            
-            dataframes = add_to_dataframe(obj_type, code, name, "M", key, date, value_a, value_b, dataframes)
-            
+            for col_block in {col for col in row.index.get_level_values(0) if col.startswith(f"{key}(")}: #Iterate between dataframes with more than 1 block
+                date = str(index)
+                value_a = row[(col_block,"self")]
+                value_b = row[(col_block,"other")]
+                dataframes = add_to_dataframe(obj_type, code, name, "M", key, date, value_a, value_b, dataframes)
+
     return dataframes
 
 def find_correspondent(obj_source, obj_target):
@@ -247,25 +249,32 @@ def save__dataframes(dataframes,output_dir):
         
         print(f"Saved {path}")
 
+if __name__== "__main__":
+    #Define cases path 
+    STUDY_A_PATH = r'Case15'
+    STUDY_B_PATH = r'Case15_mod'
 
-#Define cases path 
-STUDY_A_PATH = r'Case15'
-STUDY_B_PATH = r'Case15_mod'
+    #Load studies
+    study_a = psr.factory.load_study(STUDY_A_PATH)
+    study_b = psr.factory.load_study(STUDY_B_PATH)
 
-#Load studies
-study_a = psr.factory.load_study(STUDY_A_PATH)
-study_b = psr.factory.load_study(STUDY_B_PATH)
+    # Set dataframes dict and output_dir
+    dataframes = {}
+    output_dir = "comparison_results"
 
+    # Remove existents results
+    if os.path.exists(output_dir) and os.path.isdir(output_dir):
+        for item in os.listdir(output_dir):
+            item_path = os.path.join(output_dir, item)
 
-thermal = study_a.find_by_code("ThermalPlant",1)[0]
-fuel_2 = study_a.find_by_code("Fuel",2)[0]
+            if os.path.isfile(item_path):
+                os.remove(item_path)  
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)  
 
-thermal.set("RefFuels",[fuel_2])
+        print(f"Previous results from '{output_dir}' were deleted")
 
-dataframes = {}
-output_dir = "comparison_results"
-
-save__dataframes(dataframes,output_dir)
+    save__dataframes(dataframes,output_dir)
 
 
 
