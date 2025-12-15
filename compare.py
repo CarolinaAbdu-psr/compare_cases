@@ -75,9 +75,10 @@ def compare_static_values(obj_source, obj_target, key, dataframes):
     value_a = None
     value_b = None
     try: 
-        value_a = obj_target.get(key)
+        value_a = obj_source.get(key)
         value_b = obj_target.get(key)
     except:
+        print(f'Error getting value for {key}')
         pass 
         
     if value_a != value_b: 
@@ -87,8 +88,10 @@ def compare_static_values(obj_source, obj_target, key, dataframes):
         
     return dataframes
 
+
 def compare_dynamic_values(obj_source, obj_target, key, dataframes):
     """Compare dynamic properties (dataframes) such as Thermal Plants Installed Capacity modifications"""
+
     try:
         obj_type = obj_source.type 
         code = obj_source.code 
@@ -102,20 +105,36 @@ def compare_dynamic_values(obj_source, obj_target, key, dataframes):
         #Compare two dataframes
         df_a = obj_source.get_df(key)
         df_b = obj_target.get_df(key)
-        df_compare = df_a.compare(df_b) #Dataframe only with the diferences between two dataframes 
-        print(df_compare)
+        
+        cols1 = set(df_a.columns)
+        cols2 = set(df_b.columns)
+        comum_cols = cols1.intersection(cols2)
+
+        dif_12 = sorted(cols1 - cols2)
+        dif_21 = sorted(cols2 - cols1)
+
+        # Colunms of dataframe a that aren't in dataframe b
+        for column_name in dif_12:
+            dataframes = add_to_dataframe(obj_type, code, name, "M", column_name, "-", "Column only in A", "None", dataframes)
+        
+        # Colunms of dataframe b that aren't in dataframe a
+        for column_name in dif_21:
+            dataframes = add_to_dataframe(obj_type, code, name, "M", column_name, "-", "None", "Column only in B", dataframes)
+
+        #Comuns columns 
+        for column_name in comum_cols:
+            df_compare = df_a[[column_name]].compare(df_b[[column_name]])
+            for index, row in df_compare.iterrows(): 
+                date = str(index)
+                value_a = row[(column_name,"self")]
+                value_b = row[(column_name,"other")]
+                dataframes = add_to_dataframe(obj_type, code, name, "M", column_name, date, value_a, value_b, dataframes)
+            
 
     except Exception as e:
         print(f"Error comparing dynamic value {key}: {e}")
-        return dataframes
 
-    for index, row in df_compare.iterrows():
-            # Add each difference to a row at the modification dataframe
-            for col_block in {col for col in row.index.get_level_values(0) if col.startswith(f"{key}(")}: #Iterate between dataframes with more than 1 block
-                date = str(index)
-                value_a = row[(col_block,"self")]
-                value_b = row[(col_block,"other")]
-                dataframes = add_to_dataframe(obj_type, code, name, "M", key, date, value_a, value_b, dataframes)
+        return dataframes
 
     return dataframes
 
@@ -128,6 +147,25 @@ def find_correspondent(obj_source, obj_target):
             return item 
     return None
 
+def compare_study_object(obj_source,obj_target,dataframes):
+    """Compare properties from study object"""
+    # Get all properties of obj_source
+    for key in obj_source.descriptions().keys():
+
+        # Define object type, code, and name, with exeception for study object
+        type = "Study Object"
+
+        #Compare if the properties are equal (static and dynamic)
+        description = obj_target.description(key)
+        if description is not None: 
+
+            if not description.is_dynamic(): 
+                dataframes = compare_static_values(obj_source, obj_target, key, dataframes)
+
+            else: 
+                dataframes = compare_dynamic_values(obj_source, obj_target, key, dataframes)
+
+    return dataframes
 
 def compare_objects(obj_source, obj_target, dataframes): 
     """Compare two objects property by property"""
@@ -227,8 +265,9 @@ def compare_studies(study_a, study_b, dataframes):
 
         dataframes= add_to_dataframe(type, code, name, "A", "None","None","None", "None", dataframes)
 
-    #Compare study object 
-    dataframes = compare_objects(study_a,study_b, dataframes)
+    #Compare study object
+    print("Comparing Study Object")
+    dataframes = compare_study_object(study_a,study_b, dataframes)
 
     return dataframes
 
