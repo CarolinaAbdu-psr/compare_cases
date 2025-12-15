@@ -1,3 +1,5 @@
+#version 1.5
+
 import psr.factory 
 import pandas as pd
 import os 
@@ -215,7 +217,8 @@ def compare_objects(obj_source, obj_target, dataframes):
     return dataframes
 
 
-def compare_studies(study_a, study_b, dataframes):
+def compare_studies(study_a, study_b, dataframes={}):
+    """Compare two studies and return a dictionary of dataframes"""
 
     # Compare all objects from study_a with objcts from study_b
     all_objects=study_a.get_all_objects()
@@ -272,33 +275,23 @@ def compare_studies(study_a, study_b, dataframes):
     return dataframes
 
 
-def save__dataframes(dataframes,output_dir):
+def save__dataframes(differences):
 
+    output_dir = "comparison_results"
     os.makedirs(output_dir, exist_ok=True)
 
-    for filename, df in compare_studies(study_a, study_b,dataframes).items():
+    for filename, df in differences.items():
 
         df = df.fillna("None")
-
         csv_name = f"{filename}.csv"
         path = os.path.join(output_dir, csv_name)
 
         # Save dataframe to CSV
         df.to_csv(path, index=True)
-        
         print(f"Saved {path}")
 
-if __name__== "__main__":
-    #Define cases path 
-    STUDY_A_PATH = r'Case15'
-    STUDY_B_PATH = r'Case15_mod'
 
-    #Load studies
-    study_a = psr.factory.load_study(STUDY_A_PATH)
-    study_b = psr.factory.load_study(STUDY_B_PATH)
-
-    # Set dataframes dict and output_dir
-    dataframes = {}
+def clean_outputs():
     output_dir = "comparison_results"
 
     # Remove existents results
@@ -313,7 +306,18 @@ if __name__== "__main__":
 
         print(f"Previous results from '{output_dir}' were deleted")
 
-    save__dataframes(dataframes,output_dir)
+
+def compare(STUDY_A_PATH, STUDY_B_PATH):
+
+    #Load studies
+    study_a = psr.factory.load_study(STUDY_A_PATH)
+    study_b = psr.factory.load_study(STUDY_B_PATH)
+
+    differences = compare_studies(study_a,study_b)
+    clean_outputs()
+    save__dataframes(differences)
 
 
-
+study_a_path = r"Case15"
+study_b_path = r"Case15_mod"
+compare(study_a_path,study_b_path)
