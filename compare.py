@@ -6,6 +6,26 @@ import os
 import shutil
 import argparse
 import sys
+import logging
+
+# Configure logging: file receives all differences (INFO+), console only WARNING+
+logger = logging.getLogger("compare_cases")
+if not logger.handlers:
+    logger.setLevel(logging.DEBUG)
+    # File handler logs everything (INFO and above)
+    fh = logging.FileHandler("log.txt", mode="a", encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    fh.setFormatter(fh_formatter)
+    logger.addHandler(fh)
+
+    # Console handler only shows warnings and errors
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.WARNING)
+    ch_formatter = logging.Formatter('%(levelname)s: %(message)s')
+    ch.setFormatter(ch_formatter)
+    logger.addHandler(ch)
+    logger.propagate = False
 
 def create_dataframe(code,name,options, property,date, value_a,value_b):
     """Creates a dataframe with the collumns from the instances"""
@@ -32,6 +52,14 @@ def add_to_dataframe(type, code, name, options, property,date, value_a, value_b,
         df = dataframes[type]
         new_line = create_dataframe(code,name,options,property,date, value_a,value_b)
         dataframes[type] = pd.concat([df,new_line], ignore_index = False)
+
+    # Log the difference to the file logger (info level)
+    try:
+        logger.info("Difference added - type=%s code=%s name=%s op=%s property=%s date=%s value_a=%s value_b=%s",
+                    type, code, name, options, property, date, value_a, value_b)
+    except Exception:
+        # If logging is not configured for some reason, silently continue
+        pass
 
     return dataframes
 
@@ -82,11 +110,11 @@ def compare_static_values(obj_source, obj_target, key, dataframes):
         value_a = obj_source.get(key)
         value_b = obj_target.get(key)
     except Exception as e:
-        print(f'Error getting value for {key}:{e}')
+        logger.error('Error getting value for %s: %s', key, e)
         pass 
         
     if value_a != value_b: 
-        print(f"{key}: Values different (Static) {value_a}, {value_b}")
+        logger.info("Static difference - %s: %s vs %s", key, value_a, value_b)
         # Register modification of static values
         dataframes = add_to_dataframe(obj_type, code, name, "M", key, "01/01/1900 ", value_a, value_b, dataframes)
         
@@ -136,7 +164,7 @@ def compare_dynamic_values(obj_source, obj_target, key, dataframes):
             
 
     except Exception as e:
-        print(f"Error comparing dynamic value {key}: {e}")
+        logger.error("Error comparing dynamic value %s: %s", key, e)
 
         return dataframes
 
@@ -212,7 +240,7 @@ def compare_objects(obj_source, obj_target, dataframes):
 
             # If refences objects are not the same, add modification on dataframe
             if not match: 
-                print("Different references found")
+                logger.info("Different references found for %s code=%s name=%s key=%s", type, code, name, key)
                 dataframes = add_to_dataframe(type, code, name, "M", key, "",ref_list_source, ref_list_target, dataframes)
             continue 
 
@@ -281,7 +309,7 @@ def compare_studies(study_a, study_b, dataframes={}):
         dataframes= add_to_dataframe(type, code, name, "A", "None","None","None", "None", dataframes)
 
     #Compare study object
-    print("Comparing Study Object")
+    logger.info("Comparing Study Object")
     dataframes = compare_study_object(study_a,study_b, dataframes)
 
     return dataframes
@@ -300,7 +328,7 @@ def save__dataframes(differences):
 
         # Save dataframe to CSV
         df.to_csv(path, index=True)
-        print(f"Saved {path}")
+        logger.info("Saved %s", path)
 
 
 def clean_outputs():
@@ -316,7 +344,7 @@ def clean_outputs():
             elif os.path.isdir(item_path):
                 shutil.rmtree(item_path)  
 
-        print(f"Previous results from '{output_dir}' were deleted")
+        logger.info("Previous results from '%s' were deleted", output_dir)
 
 
 def compare(STUDY_A_PATH, STUDY_B_PATH):
