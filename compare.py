@@ -4,6 +4,8 @@ import psr.factory
 import pandas as pd
 import os 
 import shutil
+import argparse
+import sys
 
 def create_dataframe(code,name,options, property,date, value_a,value_b):
     """Creates a dataframe with the collumns from the instances"""
@@ -79,8 +81,8 @@ def compare_static_values(obj_source, obj_target, key, dataframes):
     try: 
         value_a = obj_source.get(key)
         value_b = obj_target.get(key)
-    except:
-        print(f'Error getting value for {key}')
+    except Exception as e:
+        print(f'Error getting value for {key}:{e}')
         pass 
         
     if value_a != value_b: 
@@ -149,6 +151,15 @@ def find_correspondent(obj_source, obj_target):
             return item 
     return None
 
+def is_dataframe(obj,key): 
+    """Check if the property is a dataframe"""
+    description = obj.description(key)
+    if description.is_dynamic():
+        return True
+    if len(description.dimensions()) >0: 
+        return True
+    return False
+
 def compare_study_object(obj_source,obj_target,dataframes):
     """Compare properties from study object"""
     # Get all properties of obj_source
@@ -159,9 +170,10 @@ def compare_study_object(obj_source,obj_target,dataframes):
 
         #Compare if the properties are equal (static and dynamic)
         description = obj_target.description(key)
-        if description is not None: 
 
-            if not description.is_dynamic(): 
+        if description is not None: 
+            
+            if not  is_dataframe(obj_target,key): 
                 dataframes = compare_static_values(obj_source, obj_target, key, dataframes)
 
             else: 
@@ -208,7 +220,7 @@ def compare_objects(obj_source, obj_target, dataframes):
         description = obj_target.description(key)
         if description is not None: 
 
-            if not description.is_dynamic(): 
+            if not is_dataframe(obj_target,key): 
                 dataframes = compare_static_values(obj_source, obj_target, key, dataframes)
 
             else: 
@@ -317,7 +329,21 @@ def compare(STUDY_A_PATH, STUDY_B_PATH):
     clean_outputs()
     save__dataframes(differences)
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Compare two SDDP cases and return a report of differneces")
+    parser.add_argument("-sa", "--study_path_a", required=True, help="Path to the firt study")
+    parser.add_argument("-sb", "--study_path_b", required=True, help="PPath to the second study")
+    
+    args = parser.parse_args()
+  
+    STUDY_A_PATH = args.study_path_a
+    STUDY_B_PATH= args.study_path_b
 
-study_a_path = r"Case15"
-study_b_path = r"Case15_mod"
-compare(study_a_path,study_b_path)
+    #Load studies
+    study_a = psr.factory.load_study(STUDY_A_PATH)
+    study_b = psr.factory.load_study(STUDY_B_PATH)
+
+    differences = compare_studies(study_a,study_b)
+    clean_outputs()
+    save__dataframes(differences)
+    
