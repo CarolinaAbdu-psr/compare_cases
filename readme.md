@@ -38,5 +38,5 @@ On this csv the objcts are tracked as removed, added or moodify (property)
 # v1.6 
 - Add logging file (log.txt)
 
-## To do list 
-- Check elements that doesn't have code
+# v2.0
+- Compare elements considering keys
